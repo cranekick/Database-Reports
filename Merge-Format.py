@@ -17,6 +17,8 @@ import pdb
 import os
 
 # script = argv
+district_name = input("What is the name of the District? ")
+
 directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx', recursive=True)
 #directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx')
 print("Adding file location to Sheets")
@@ -46,11 +48,13 @@ def merge_files():
     merge_file = pd.DataFrame()
     for f in directory:
     #pdb.set_trace()
-        read_file = pd.read_excel(f, header=6)
+        read_file = pd.read_excel(f, header=6) # damn, either 5 or 6, now its all broken
         merge_file = merge_file.append(read_file)
-        merge_file.to_excel('/Users/beik/Desktop/MergedFile.xlsx')
+    merge_file.to_excel('/Users/beik/Desktop/MergedFile.xlsx')
 
 merge_files()
+
+pdb.set_trace()
 
 print("Merging complete")
 
@@ -59,9 +63,9 @@ openfile = pd.read_excel('/Users/beik/Desktop/MergedFile.xlsx')
 vuln_counts = openfile[(openfile['Risk Level'] == 'Serious') | \
     (openfile['Risk Level'] == 'High') | \
     (openfile['Risk Level'] == 'Medium')]\
-    .groupby(['Vulnerability','Risk Level']).size().reset_index(name='counts')
+    .groupby(['Vulnerability','Risk Level']).size().reset_index(name='Quantity')
 
-vuln_counts.to_excel('/Users/beik/Desktop/Vuln Count.xlsx')
+vuln_counts.to_excel('/Users/beik/Desktop/' + district_name + ' Vuln Count.xlsx')
 
 
 min_col, min_row, max_col, max_row = range_boundaries("A:P")
@@ -250,8 +254,8 @@ pie.title = "Vulnerabilities by Severity"
 
 ws0.add_chart(pie, "D1")
 
-outpath = newfile.save('/Users/beik/Desktop/Final Report.xlsx')
-print("Your file is saved at /Users/beik/Desktop/Final Report.xlsx")
+outpath = newfile.save('/Users/beik/Desktop/' + district_name + ' Final Report.xlsx')
+print("Your file is saved at " + outpath)
 print("Done")
 
 os.remove('/Users/beik/Desktop/MergedFile.xlsx')
