@@ -278,5 +278,5 @@ newfile.save(outpath)
 print("Your file is saved at " + outpath)
 print("Done")
 
-os.remove('/Users/beik/Desktop/' + disctict_name + ' MergedFile.xlsx')
-os.remove('/Users/beik/Desktop/' + district_name + ' Vuln Count.xlsx')
+os.remove('/Users/beik/Desktop/' + district_name + ' MergedFile.xlsx')
+#os.remove('/Users/beik/Desktop/' + district_name + ' Vuln Count.xlsx')
