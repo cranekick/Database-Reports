@@ -28,6 +28,15 @@ writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
 
 df.to_excel(writer, "Location Breakdown", header=['Location', 'Critical', 'High', 'Medium', 'Low'])
 
+# FUTURE STATE
+
+#hide_column('Location Breakdown', 1)
+
+
+
+
+
+
 writer.save()
 
 cursor.close()
