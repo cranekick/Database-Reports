@@ -1,3 +1,6 @@
+#!/usr/local/bin/python3
+
+
 from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import range_boundaries
@@ -16,11 +19,11 @@ import glob
 import pdb
 import os
 
-# script = argv
+
 district_name = input("What is the name of the District? ")
 
 directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx', recursive=True)
-#directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx')
+
 print("Adding file location to Sheets")
 def add_location():
     for f in directory:
@@ -53,8 +56,6 @@ def merge_files():
     merge_file.to_excel('/Users/beik/Desktop/MergedFile.xlsx')
 
 merge_files()
-
-pdb.set_trace()
 
 print("Merging complete")
 
