@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3
 
 import mysql.connector
 import pandas as pd
@@ -23,38 +23,46 @@ query = ("""SELECT vjobs.name as Location, hostname as Hostname, hostip as 'Host
 
 cursor.execute(query)
 results = cursor.fetchall()
-#results = results.decode("utf-8")
+
+query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High, vMed as Medium, vLow as Low
+            from vuln_nessus_report_stats vnrstats
+            join vuln_jobs vjobs on vjobs.id = vnrstats.name""")
+
+cursor.execute(query1)
+results1 = cursor.fetchall()
+
 cursor.close()
 cnx.close()
 
-header_row  = ['Location', 'Hostname', 'Host IP', 'Service', 'Vuln ID', 'CVE', 'Risk Level', 'Vulnerability', \
-               '9', '10', '11', '12', 'Blob']
-df = pd.DataFrame(results, columns=header_row)
-df = df.astype(str)
-df['Vulnerability'] = df['Vulnerability'] + '\n' + 'Family name: ' + df['9'] + '\n' + 'Category: ' + df['10'] + '\n' + \
-                      'Copyright: ' + df['11'] + '\n' + 'Version: ' + df['12']
-
-df['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
+def df_shenanigans():
+    header_row  = ['Location', 'Hostname', 'Host IP', 'Service', 'Vuln ID', 'CVE', 'Risk Level', 'Vulnerability', \
+                    '9', '10', '11', '12', 'Blob']
+    df = pd.DataFrame(results, columns=header_row)
+    df = df.astype(str)
+    df['Vulnerability'] = df['Vulnerability'] + '\n' + 'Family name: ' + df['9'] + '\n' + 'Category: ' + df['10'] + '\n' + \
+                             'Copyright: ' + df['11'] + '\n' + 'Version: ' + df['12']
+    df['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
                          value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info', \
                                 'Exceptions'], inplace=True)
-df.drop(['9', '10', '11', '12'], inplace=True, axis=1)
+    df.drop(['9', '10', '11', '12'], inplace=True, axis=1)
+    df['CVSS'] = df['Blob'].str.extract('Score:\s(\d.+)', expand=True)
+    df['Observation'] = df['Blob'].str.extract('Summary:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
+    df['Remediation'] = df['Blob'].str.extract('Solution:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
+    df['insight'] = df['Blob'].str.extract('Insight:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
+    df['references'] = df['Blob'].str.extract('(References:\n\n(?:[^\n][\n]?)+)', expand=False) # WORKS
+    df['Consequences'] = df['insight'] + '\n' + df['references']
+    df['Test Output'] = df['Blob'].str.extract('Result:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
+    df['Operating System/Software'] = df['Blob'].str.extract('OS:\n\n((?:[^\n][\n]?)+)', expand=False)
+    df.drop(['Blob', 'insight', 'references'], inplace=True, axis=1)
 
-df['CVSS'] = df['Blob'].str.extract('Score:\s(\d.+)', expand=True)
-df['Observation'] = df['Blob'].str.extract('Summary:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
-df['Remediation'] = df['Blob'].str.extract('Solution:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
-df['insight'] = df['Blob'].str.extract('Insight:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
-df['references'] = df['Blob'].str.extract('(References:\n\n(?:[^\n][\n]?)+)', expand=False) # WORKS
-df['Consequences'] = df['insight'] + '\n' + df['references']
-df['Test Output'] = df['Blob'].str.extract('Result:\n\n((?:[^\n][\n]?)+)', expand=False) # WORKS
-df['Operating System/Software'] = df['Blob'].str.extract('OS:\n\n((?:[^\n][\n]?)+)', expand=False)
-df.drop(['Blob', 'insight', 'references'], inplace=True, axis=1)
+    df = df[['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vuln ID', 'CVE', 'Vulnerability', \
+            'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
+    df[['CVSS']] = df[['CVSS']].apply(pd.to_numeric)
+    df.sort_values(by='CVSS', ascending=False, inplace=True)
 
-df = df[['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vuln ID', 'CVE', 'Vulnerability', \
-         'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
+    df.to_excel('/Users/beik/Desktop/' + district_name + '.xlsx')
 
-# df.sort_values(by='CVSS', ascending=False).to_excel('/Users/beik/Desktop/test11.xlsx') DROPS ALL THE 10.0's - NEED TO FIX
-
-df.to_excel('/Users/beik/Desktop/' + district_name + '.xlsx')
+df_shenanigans()
 
 
 
