@@ -5,39 +5,41 @@ import pandas as pd
 
 district_name = input("What is the name of the district? ")
 
-cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
-                              host='204.169.19.82',
-                              database='alienvault')
-
-cursor = cnx.cursor()
-
 query = ("""SELECT vjobs.name as Location, hostname as Hostname, hostip as 'Host IP', service as Service, 
-            scriptid as 'Vuln ID', vnp.cve_id as CVEs, vnres.risk as 'Risk Level', vnp.name, vnf.name, vnc.name,
-            vnp.copyright, vnp.version, msg 
-            FROM alienvault.vuln_nessus_results vnres 
-            join vuln_jobs vjobs on vjobs.report_id = vnres.report_id
-            join vuln_nessus_plugins vnp on vnres.scriptid = vnp.id
-            join vuln_nessus_category vnc on vnc.id = vnp.category
-            join vuln_nessus_family vnf on vnf.id = vnp.family
-            order by vnres.risk ASC""")
-
-cursor.execute(query)
-results = cursor.fetchall()
+        scriptid as 'Vuln ID', vnp.cve_id as CVEs, vnres.risk as 'Risk Level', vnp.name, vnf.name, vnc.name,
+        vnp.copyright, vnp.version, msg 
+        FROM alienvault.vuln_nessus_results vnres 
+        join vuln_jobs vjobs on vjobs.report_id = vnres.report_id
+        join vuln_nessus_plugins vnp on vnres.scriptid = vnp.id
+        join vuln_nessus_category vnc on vnc.id = vnp.category
+        join vuln_nessus_family vnf on vnf.id = vnp.family
+        order by vnres.risk ASC""")
 
 query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High, vMed as Medium, vLow as Low
-            from vuln_nessus_report_stats vnrstats
-            join vuln_jobs vjobs on vjobs.id = vnrstats.name""")
+        from vuln_nessus_report_stats vnrstats
+        join vuln_jobs vjobs on vjobs.id = vnrstats.name""")
 
-cursor.execute(query1)
-results1 = cursor.fetchall()
 
-cursor.close()
-cnx.close()
+def db_call(query):
+    cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
+                                  host='204.169.19.82',
+                                  database='alienvault')
+    cursor = cnx.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return results
 
+
+# GLOBAL
 header_row = ['Location', 'Hostname', 'Host IP', 'Service', 'Vuln ID', 'CVE', 'Risk Level', 'Vulnerability',
               '9', '10', '11', '12', 'Blob']
-df = pd.DataFrame(results, columns=header_row)
+header_row1 = ['Location', 'Critical', 'High', 'Medium', 'Low']
+df = pd.DataFrame(db_call(query), columns=header_row)
 df = df.astype(str)
+df1 = pd.DataFrame(db_call(query1), columns=header_row1)
+
 
 def df_shenanigans():
     df['Vulnerability'] = df['Vulnerability'] + '\n' + 'Family name: ' + df['9'] + '\n' + 'Category: ' + df['10'] + \
@@ -45,9 +47,6 @@ def df_shenanigans():
     df['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
                             value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
                                 'Exceptions'], inplace=True)
-
-
-df_shenanigans()
 
 
 def df_extract():
@@ -61,28 +60,31 @@ def df_extract():
     df['Operating System/Software'] = df['Blob'].str.extract('OS:\n\n((?:[^\n][\n]?)+)', expand=False)
 
 
-df_extract()
-
-
 def df_drop_columns():
     df.drop(['9', '10', '11', '12'], inplace=True, axis=1)
     df.drop(['Blob', 'insight', 'references'], inplace=True, axis=1)
 
 
-df_drop_columns()
-
-
 def df_apply_sort():
     df[['CVSS']] = df[['CVSS']].apply(pd.to_numeric)
     df.sort_values(by='CVSS', ascending=False, inplace=True)
+    return df
 
 
-df_apply_sort()
+def main():
+    db_call(query)
+    db_call(query1)
+    df_shenanigans()
+    df_extract()
+    df_drop_columns()
+    df_apply_sort()
+
+
+if __name__ == "__main__":
+    main()
 
 
 df = df[['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vuln ID', 'CVE', 'Vulnerability',
          'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
 df.to_excel('/Users/beik/Desktop/' + district_name + '.xlsx')
-
-
-
+df1.to_excel('/Users/beik/Desktop/' + district_name + ' Location Breakdown.xlsx')
