@@ -21,9 +21,14 @@ query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High,
 
 
 def db_call(query):
-    cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
+    try:
+        cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
                                   host='204.169.19.82',
                                   database='alienvault')
+    except:
+        print("I am unable to connect to the MySQL Instance")
+        exit(1)
+
     cursor = cnx.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
