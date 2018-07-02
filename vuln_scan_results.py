@@ -23,12 +23,13 @@ query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High,
 def db_call(query):
     try:
         cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
-                                  host='204.169.19.82',
-                                  database='alienvault')
+                                      host='204.169.19.82',
+                                      database='alienvault')
     except:
         print("I am unable to connect to the MySQL Instance")
         exit(1)
 
+    # noinspection PyUnboundLocalVariable
     cursor = cnx.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
@@ -50,8 +51,8 @@ def df_shenanigans():
     df['Vulnerability'] = df['Vulnerability'] + '\n' + 'Family name: ' + df['9'] + '\n' + 'Category: ' + df['10'] + \
                           '\n' + 'Copyright: ' + df['11'] + '\n' + 'Version: ' + df['12']
     df['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
-                            value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
-                                'Exceptions'], inplace=True)
+                             value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
+                                    'Exceptions'], inplace=True)
 
 
 def df_extract():
