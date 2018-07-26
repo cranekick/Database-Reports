@@ -256,7 +256,7 @@ pie.title = "Vulnerabilities by Severity"
 ws0.add_chart(pie, "D1")
 
 outpath = newfile.save('/Users/beik/Desktop/' + district_name + ' Final Report.xlsx')
-print("Your file is saved at " + outpath)
+print("Your file is saved at " + str(outpath))
 print("Done")
 
 os.remove('/Users/beik/Desktop/MergedFile.xlsx')
