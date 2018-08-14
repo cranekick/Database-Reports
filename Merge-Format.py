@@ -18,18 +18,31 @@ import numpy as np
 import glob
 import pdb
 import os
+import getpass
+import shutil
+import re
 
 
 district_name = input("What is the name of the District? ")
+account_name = getpass.getuser()
+make_folder1 = os.mkdir('/Users/' + account_name + '/Desktop/' + district_name)
+make_folder2 = os.mkdir('/Users/' + account_name + '/Desktop/' + district_name + '/XLSX/')
+files = glob.iglob('/Users/' + account_name + '/Downloads/ScanResult_*.xlsx', recursive=True)
+for file in files:
+    shutil.copy(file, '/Users/' + account_name + '/Desktop/' + district_name + '/XLSX/')
 
-directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx', recursive=True)
+directory = glob.iglob('/Users/' + account_name + '/Desktop/' + district_name + '/XLSX/*.xlsx', recursive=True)
 
 print("Adding file location to Sheets")
 def add_location():
     for f in directory:
         read_file = pd.read_excel(f, header=None)
         site_name = read_file.iloc[4,1]
-        site_name = site_name.replace('SCHEDULED - ','')
+        if re.search('[0-9][0-9]\s-\sSCHEDULED\s-\s', site_name):
+            site_name = re.sub('[0-9][0-9]\s -\sSCHEDULED\s-\s', '', site_name)
+        else:
+            site_name = site_name.replace('SCHEDULED - ', '')
+
         read_file.insert(0,'Location',site_name)
         read_file.iloc[[5], [0]] = 'Location'
         #print(site_name)
@@ -37,7 +50,7 @@ def add_location():
 
 add_location()
 
-directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx', recursive=True)
+directory = glob.iglob('/Users/' + account_name + '/Desktop/' + district_name + '/XLSX/*.xlsx', recursive=True)
 for f in directory:
     wb = load_workbook(f)
     wb.save(filename=f)
@@ -45,7 +58,7 @@ print("Save-As Complete")
 
 print("Grabbing Files")
 
-directory = glob.iglob('/Users/beik/Desktop/**/XLSX/*.xlsx', recursive=True)
+directory = glob.iglob('/Users/' + account_name + '/Desktop/' + district_name + '/XLSX/*.xlsx', recursive=True)
 
 def merge_files():
     merge_file = pd.DataFrame()
@@ -53,26 +66,26 @@ def merge_files():
     #pdb.set_trace()
         read_file = pd.read_excel(f, header=6) # damn, either 5 or 6, now its all broken
         merge_file = merge_file.append(read_file)
-    merge_file.to_excel('/Users/beik/Desktop/MergedFile.xlsx')
+    merge_file.to_excel('/Users/' + account_name + '/Desktop/MergedFile.xlsx')
 
 merge_files()
 
 print("Merging complete")
 
-openfile = pd.read_excel('/Users/beik/Desktop/MergedFile.xlsx')
+openfile = pd.read_excel('/Users/' + account_name  + '/Desktop/MergedFile.xlsx')
 # - python debugger - pdb.set_trace()
 vuln_counts = openfile[(openfile['Risk Level'] == 'Serious') | \
     (openfile['Risk Level'] == 'High') | \
     (openfile['Risk Level'] == 'Medium')]\
     .groupby(['Vulnerability','Risk Level']).size().reset_index(name='Quantity')
 
-vuln_counts.to_excel('/Users/beik/Desktop/' + district_name + ' Vuln Count.xlsx')
+vuln_counts.to_excel('/Users/' + account_name + '/Desktop/' + district_name + ' Vuln Count.xlsx')
 
 
 min_col, min_row, max_col, max_row = range_boundaries("A:P")
-wb = load_workbook('/Users/beik/Desktop/MergedFile.xlsx')
+wb = load_workbook('/Users/' + account_name + '/Desktop/MergedFile.xlsx')
 print("File Loaded")
-ws = wb.get_sheet_by_name("Sheet1")
+ws = wb["Sheet1"]
 
 serverity_column = 9 # == J
 first_column = 0 # == A
@@ -125,9 +138,9 @@ listofsheets = handlews(*[ws1, ws2, ws3, ws4])
 This gets the sheet names of the new file, finds the default created sheet
 and removes it.
 """
-sheet_names = newfile.get_sheet_names()
-find_sheet = newfile.get_sheet_by_name('Sheet')
-rm_sheet = newfile.remove_sheet(find_sheet)
+sheet_names = newfile.sheetnames
+find_sheet = newfile['Sheet']
+rm_sheet = newfile.remove(find_sheet)
 
 """
 This will iterate through the vulnerability report sheet and copy the cell value
@@ -150,23 +163,23 @@ This makes the cells have text wrap
 """
 for row in ws1.iter_rows():
     for cell in row:
-        cell.alignment =  cell.alignment.copy(wrapText=True) # Tested
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
 
 for row in ws2.iter_rows():
     for cell in row:
-        cell.alignment =  cell.alignment.copy(wrapText=True) # Tested
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
 
 for row in ws3.iter_rows():
     for cell in row:
-        cell.alignment =  cell.alignment.copy(wrapText=True) # Tested
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
 
 for row in ws4.iter_rows():
     for cell in row:
-        cell.alignment =  cell.alignment.copy(wrapText=True) # Tested
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
 
 for row in ws5.iter_rows():
     for cell in row:
-        cell.alignment =  cell.alignment.copy(wrapText=True) # Tested
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
 
 # ws1 column dimensions
 def format_column(ws):
@@ -255,8 +268,9 @@ pie.title = "Vulnerabilities by Severity"
 
 ws0.add_chart(pie, "D1")
 
-outpath = newfile.save('/Users/beik/Desktop/' + district_name + ' Final Report.xlsx')
-print("Your file is saved at " + str(outpath))
-print("Done")
+outpath = newfile.save('/Users/' + account_name + '/Desktop/' + district_name + ' Final Report.xlsx')
+print("Your files are saved on your Desktop, it is called " + district_name + ' Final Report and ' + district_name
+      + " Vuln Count")
 
-os.remove('/Users/beik/Desktop/MergedFile.xlsx')
+os.remove('/Users/' + account_name + '/Desktop/MergedFile.xlsx')
+shutil.rmtree('/Users/' + account_name + '/Desktop/' + district_name)
