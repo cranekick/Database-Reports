@@ -38,14 +38,13 @@ def add_location():
     for f in directory:
         read_file = pd.read_excel(f, header=None)
         site_name = read_file.iloc[4,1]
-        if re.search('[0-9][0-9]\s-\sSCHEDULED\s-\s', site_name):
-            site_name = re.sub('[0-9][0-9]\s -\sSCHEDULED\s-\s', '', site_name)
-        else:
-            site_name = site_name.replace('SCHEDULED - ', '')
-
+        site_name = site_name.replace('SCHEDULED - ', '')
+        site_name = re.sub('[0-9][0-9]\s-\s', '', site_name)
+        site_name = re.sub('[0-9]\s-\s', '', site_name)
         read_file.insert(0,'Location',site_name)
         read_file.iloc[[5], [0]] = 'Location'
         #print(site_name)
+
         read_file.to_excel(f)
 
 add_location()
