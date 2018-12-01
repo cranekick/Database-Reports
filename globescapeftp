@@ -1,0 +1,3 @@
+<decoder name =Globescape EFT>
+   <prematch>(\d*-\d*-\d*\s\d*:\d*:\d*)\s(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3})\s(-|\d*)\s(\w*\\\w*|-)\s(\[\d*\]\w+)\s((-|\w*\.\w*)|(\/?[a-zA-Z0-9_]*\.\w*)|(\w*\\\w*|\w*))|(\/\w*\/\w*\.\w*)|(\**)\s\-\s(\d{3,5})\s\-\s(-|\d{1,6})\s\-\s(\d{2})</prematch>
+</decoder>
