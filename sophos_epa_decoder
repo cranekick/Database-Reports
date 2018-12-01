@@ -1,0 +1,17 @@
+<!--
+  -  Sophos Endpoint Protection Advanced decoders
+  -  Created by SWT <security@ties.k12.mn.us>.
+  -  This program is a free software; you can redistribute it and/or modify it under the terms of GPLv2.
+-->
+
+<!--
+Sophos Endpoint Protection Advanced
+
+InsertedAt=2018-11-28 19:20:36; EventID=22745; EventTime=2018-11-28 19:20:32; EventTypeID=2; EventType=Adware or PUA; Name=PsExec; ReportingName=PsExec; UserN$
+InsertedAt=2018-11-28 19:20:36; EventID=22745; EventTime=2018-11-28 19:20:32; ActionTakenID=116; ActionTaken=Blocked; UserName=TIES_ADMIN\dom000535; ScannerTy$
+
+ -->
+
+<decoder name="sophos epa">
+    <regex>(?:InsertedAt="?([^;"]*)"?;\s|EventID="?(\d+)"?;\s|EventTime="?([^;"]*)"?;\s|EventTypeID="?(\d)"?;\s*|EventType="?([^;"]*)"?;\s|Name="?([^;"]*)"?;\s|ReportingName="?([^;"]*)"?;\s|UserName="?(?:([^\\;]+)\\)?([^;"]*)"?;\s|Action(?:Taken)?ID="?(\d+)"?;\s|Action(?:Taken)?="?([^;"]*)"?;\s|(?:ScanTypeID|ScannerTypeID)="?([^;"]*)"?;\s*|(?:ScanType|ScannerType)="?([^;"]*)"?;\s|(?:SubTypeID|StatusID)="?([^;"]*)"?;\s*|(?:Status|SubType)="?([^;"]*)"?;\s+|ThreatTypeID="?([^;"]*)"?;\s|ThreatType="?([^;"]*)"?;\s*|ThreatName="?([^;"]*)"?;\s*|FullFilePath="?([^;"]*)"?;\s*|ComputerName="?([^;"]*)"?;\s*|ComputerDomain="?([^;"]*)"?;\s*|ComputerIPAddress="?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3});?)+</regex>
+</decoder>
