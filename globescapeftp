@@ -1,3 +1,12 @@
-<decoder name =Globescape EFT>
-   <prematch>(\d*-\d*-\d*\s\d*:\d*:\d*)\s(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3})\s(-|\d*)\s(\w*\\\w*|-)\s(\[\d*\]\w+)\s((-|\w*\.\w*)|(\/?[a-zA-Z0-9_]*\.\w*)|(\w*\\\w*|\w*))|(\/\w*\/\w*\.\w*)|(\**)\s\-\s(\d{3,5})\s\-\s(-|\d{1,6})\s\-\s(\d{2})</prematch>
+<decoder name="Globescape EFT">
+   <parent>windows-date-format</parent>
+   <prematch offset="after_parent">\d*.\d*.\d*.\d* -|\d* \S*\\\S*</prematch>
+   <regex offset="after_parent">(\d+.\d+.\d+.\d+) - (\S+\\\S+) </regex>
+   <order>IP, Data</order>
+</decoder>
+
+<decoder name="Globescape EFT">
+    <parent>windows-date-format</parent>
+    <regex offset="after_parent">[\d+](\S+) /(\.+) - (\.+)</regex>
+    <order>action, file, extra-data</order>
 </decoder>
