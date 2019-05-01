@@ -15,7 +15,7 @@ print("Masscan Output: " + str(output))
 
 
 masscan_results = open('/var/log/masscan-output.log', "r")
-ping_systems = open('/var/log/live_systems.txt', 'w')
+ping_systems = open('/var/log/live_systems.log', 'w')
 ip_regex = re.compile(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})")
 ip_array = []
 
@@ -26,8 +26,9 @@ for line in enumerate(masscan_results):
         ip_array.append(ip) # YAY!
         ping_systems.write("%s\n" % ip)
 ping_systems.close()
+masscan_results.close()
 
 nmap = call("nmap -iL /var/log/live_systems.log -A -oN /var/log/nmap_results.log", shell=True)
-masscan_results.close()
+
 
 
