@@ -16,6 +16,8 @@ query = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High, 
 
 cursor.execute(query)
 results = cursor.fetchall()
+cursor.close()
+cnx.close()
 
 print("Got the DATA!")
 
@@ -31,16 +33,8 @@ df.to_excel(writer, "Location Breakdown", header=['Location', 'Critical', 'High'
 # FUTURE STATE
 
 #hide_column('Location Breakdown', 1)
-
-
-
-
-
-
 writer.save()
 
-cursor.close()
-cnx.close()
 
 
 # STILL NEED TO HIDE THE FIRST COLUMN
