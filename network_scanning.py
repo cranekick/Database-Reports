@@ -25,11 +25,11 @@ for line in enumerate(masscan_results):
         # print(ip)
         ip_array.append(ip) # YAY!
         ping_systems.write("%s\n" % ip)
-        ascending_file = sorted(ping_systems)
+        # ascending_file = sorted(ping_systems)
 ping_systems.close()
 masscan_results.close()
 
-nmap = call("nmap -iL /var/log/live_systems.log -A -oX /var/log/" + current_date + " nmap_results.log", shell=True)
+nmap = call("nmap -iL /var/log/live_systems.log -A -oX /var/log/" + current_date + " nmap_results.xml", shell=True)
 
 
 
