@@ -2,6 +2,8 @@
 
 import mysql.connector
 import pandas as pd
+from sys import exit
+
 
 district_name = input("What is the name of the district? ")
 
@@ -23,10 +25,10 @@ query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High,
 def db_call(query):
     try:
         cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
-                                      host='204.169.19.82',
+                                      host='localhost',
                                       database='alienvault')
-    except:
-        print("I am unable to connect to the MySQL Instance")
+    except ConnectionError:
+        print("I am unable to connect to the MySQL Instance, " + sys.stderr)
         exit(1)
 
     # noinspection PyUnboundLocalVariable
