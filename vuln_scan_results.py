@@ -3,10 +3,19 @@
 import mysql.connector
 import pandas as pd
 from sys import exit
+from subprocess import Popen, call
+from time import sleep
 
+# This is a dependency, we are creating a background ssh tunnel, this is to be able to access the AlienVault DB
+ssh_magic = Popen(['ssh', '-N', '-L', '3306:127.0.0.1:3306', 'sec-mobile-one'], shell=False)
 
+# Needs testing since it is a background process now
+sleep(20)
+
+# This is for the name of the files that are created.
 district_name = input("What is the name of the district? ")
 
+# This is the query to get the Vulnerability Results from the Database
 query = ("""SELECT vjobs.name as Location, hostname as Hostname, hostip as 'Host IP', service as Service, 
         scriptid as 'Vuln ID', vnp.cve_id as CVEs, vnres.risk as 'Risk Level', vnp.name, vnf.name, vnc.name,
         vnp.copyright, vnp.version, msg 
@@ -17,18 +26,20 @@ query = ("""SELECT vjobs.name as Location, hostname as Hostname, hostip as 'Host
         join vuln_nessus_family vnf on vnf.id = vnp.family
         order by vnres.risk ASC""")
 
+# This is to get the total numbers per site as scans are based on physical locations
 query1 = ("""SELECT vjobs.name as Location, vSerious as Critical, vHigh as High, vMed as Medium, vLow as Low
         from vuln_nessus_report_stats vnrstats
         join vuln_jobs vjobs on vjobs.id = vnrstats.name""")
 
 
+# Accessing the AlienVault MySQL Database
 def db_call(query):
     try:
         cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
                                       host='localhost',
                                       database='alienvault')
-    except ConnectionError:
-        print("I am unable to connect to the MySQL Instance, " + sys.stderr)
+    except Exception as e:
+        print("I am unable to connect to the MySQL Instance, " + str(e))
         exit(1)
 
     # noinspection PyUnboundLocalVariable
@@ -96,3 +107,8 @@ df = df[['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vu
          'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
 df.to_excel('/Users/beik/Desktop/' + district_name + '.xlsx')
 df1.to_excel('/Users/beik/Desktop/' + district_name + ' Location Breakdown.xlsx')
+
+print("The background port forwarding process is " + str(ssh_magic.pid))
+print("I am now ending the background process")
+kill_process = call('kill ' + str(ssh_magic.pid), shell=True)
+print("The background process is now terminated!")
