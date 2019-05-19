@@ -5,11 +5,10 @@ import pandas as pd
 from sys import exit
 from subprocess import Popen
 from time import time
-# import xlsxwriter
 import openpyxl
 from openpyxl import load_workbook
-# from openpyxl.chart import PieChart3D, Reference, Series
 from os import remove
+from getpass import getuser
 
 start_time = time()
 # This is a dependency, we are creating a background ssh tunnel, this is to be able to access the AlienVault DB
@@ -18,6 +17,7 @@ print("Starting background process. ")
 ssh_magic = Popen(['ssh', '-N', '-L', '3306:127.0.0.1:3306', 'sec-mobile-one'], shell=False)
 
 # This is for the name of the files that are created.
+current_user = getuser()
 district_name = input("What is the name of the district? ")
 
 # This is the query to get the Vulnerability Results from the Database
@@ -154,10 +154,6 @@ if __name__ == "__main__":
 df = df[['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vuln ID', 'CVE', 'Vulnerability',
          'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
 
-# writer = pd.ExcelWriter('/Users/beik/Desktop/Initial Data.xlsx', engine='xlsxwriter')
-
-
-
 
 critical_df = df.where(df['Risk Level'] == 'Critical')
 processed_crits = critical_df.dropna(how='all')
@@ -178,7 +174,7 @@ num_of_lows = processed_lows.shape[0]
 
 def ex_data():
     from xlsxwriter import Workbook
-    file = Workbook('/Users/beik/Desktop/Initial Report.xlsx')
+    file = Workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     ws0 = file.add_worksheet('Executive Summary')
     headings = ['Severity', 'Quantity']
     data = [
@@ -216,8 +212,8 @@ def ex_data():
 ex_data()
 
 # This needs to happen after ex_data
-book = load_workbook('/Users/beik/Desktop/Initial Report.xlsx')
-writer = pd.ExcelWriter('/Users/beik/Desktop/Initial Report.xlsx', engine='openpyxl', mode='a')
+book = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
+writer = pd.ExcelWriter('/Users/' + current_user + '/Desktop/Initial Report.xlsx', engine='openpyxl', mode='a')
 
 processed_crits.to_excel(writer, sheet_name='Critical')
 processed_highs.to_excel(writer, sheet_name='High')
@@ -230,7 +226,7 @@ df_vuln_counts().to_excel(writer, sheet_name='Unique by Severity')
 writer.save()
 writer.close()
 
-final_wb = load_workbook('/Users/beik/Desktop/Initial Report.xlsx')
+final_wb = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
 
 ws0 = final_wb['Executive Summary']
 ws1 = final_wb['Critical']
@@ -324,10 +320,10 @@ def spy():
 
 spy()
 
-final_wb.save('/Users/beik/Desktop/' + district_name + ' Final Report.xlsx')
+final_wb.save('/Users/' + current_user + '/Desktop/' + district_name + ' Final Report.xlsx')
 final_wb.close()
 
-rm_initial_report = remove('/Users/beik/Desktop/Initial Report.xlsx')
+rm_initial_report = remove('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
 
 ssh_magic.kill()
 print("The background process is now terminated!")
