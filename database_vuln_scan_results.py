@@ -5,10 +5,11 @@ import pandas as pd
 from sys import exit
 from subprocess import Popen
 from time import time
-import xlsxwriter
+# import xlsxwriter
 import openpyxl
 from openpyxl import load_workbook
-from openpyxl.chart import PieChart3D, Reference, Series
+# from openpyxl.chart import PieChart3D, Reference, Series
+from os import remove
 
 start_time = time()
 # This is a dependency, we are creating a background ssh tunnel, this is to be able to access the AlienVault DB
@@ -178,23 +179,23 @@ num_of_lows = processed_lows.shape[0]
 def ex_data():
     from xlsxwriter import Workbook
     file = Workbook('/Users/beik/Desktop/Initial Report.xlsx')
-    worksheet = file.add_worksheet()
+    ws0 = file.add_worksheet('Executive Summary')
     headings = ['Severity', 'Quantity']
     data = [
         ['Critical', 'High', 'Medium', 'Low'],
         [num_of_crits, num_of_highs, num_of_mediums, num_of_lows]
-]
-    worksheet.write_row('A1', headings)
-    worksheet.write_column('A2', data[0])
-    worksheet.write_column('B2', data[1])
+            ]
+    ws0.write_row('A1', headings)
+    ws0.write_column('A2', data[0])
+    ws0.write_column('B2', data[1])
 
     chart2 = file.add_chart({'type': 'pie'})
 
 # Configure the series and add user defined segment colors.
     chart2.add_series({
         'name': 'Vulnerabiliities by Severity',
-        'categories': '=Sheet1!$A$2:$A$5',
-        'values':     '=Sheet1!$B$2:$B$5',
+        'categories': "='Executive Summary'!$A$2:$A$5",
+        'values':     "='Executive Summary'!$B$2:$B$5",
         'data_labels': {'percentage': True},
         'points': [
             {'fill': {'color': '#FF00FF'}},
@@ -208,13 +209,13 @@ def ex_data():
     chart2.set_title({'name': 'Vulnerabilities by Severity'})
 
 # Insert the chart into the worksheet (with an offset).
-    worksheet.insert_chart('D1', chart2, {'x_offset': 25, 'y_offset': 10})
+    ws0.insert_chart('D1', chart2, {'x_offset': 25, 'y_offset': 10})
 
     file.close()
 
 ex_data()
 
-
+# This needs to happen after ex_data
 book = load_workbook('/Users/beik/Desktop/Initial Report.xlsx')
 writer = pd.ExcelWriter('/Users/beik/Desktop/Initial Report.xlsx', engine='openpyxl', mode='a')
 
@@ -229,7 +230,105 @@ df_vuln_counts().to_excel(writer, sheet_name='Unique by Severity')
 writer.save()
 writer.close()
 
-print("I am now ending the background process")
+final_wb = load_workbook('/Users/beik/Desktop/Initial Report.xlsx')
+
+ws0 = final_wb['Executive Summary']
+ws1 = final_wb['Critical']
+ws2 = final_wb['High']
+ws3 = final_wb['Medium']
+ws4 = final_wb['Low']
+ws5 = final_wb['Info']
+ws6 = final_wb['Unique by Severity']
+
+vuln_data = [ws1, ws2, ws3, ws4, ws5]
+
+ws1.sheet_properties.tabColor='FF00FF' # Critical
+ws2.sheet_properties.tabColor='FF0000' # High
+ws3.sheet_properties.tabColor='FFC000' # Medium
+ws4.sheet_properties.tabColor='FFFF00' # Low
+ws5.sheet_properties.tabColor='00B050' # Info
+
+for row in ws1.iter_rows():
+    for cell in row:
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
+
+for row in ws2.iter_rows():
+    for cell in row:
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
+
+for row in ws3.iter_rows():
+    for cell in row:
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
+
+for row in ws4.iter_rows():
+    for cell in row:
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
+
+for row in ws5.iter_rows():
+    for cell in row:
+        cell.alignment = cell.alignment.copy(wrapText=True) # Tested
+        
+        
+def format_column(ws):
+    ws.column_dimensions["B"].width = 14.50
+    ws.column_dimensions["C"].width = 17
+    ws.column_dimensions["D"].width = 13
+    ws.column_dimensions["E"].width = 12
+    ws.column_dimensions["F"].width = 9
+    ws.column_dimensions["G"].width = 5
+    ws.column_dimensions["H"].width = 14
+    ws.column_dimensions["I"].width = 13
+    ws.column_dimensions["J"].width = 25
+    ws.column_dimensions["K"].width = 38
+    ws.column_dimensions["L"].width = 25
+    ws.column_dimensions["M"].width = 25
+    ws.column_dimensions["N"].width = 30
+    ws.column_dimensions["O"].width = 30
+    return ws
+
+def handle_col(*sheets):
+    return [format_column(sheet) for sheet in sheets]
+
+
+proper_width = handle_col(*[ws1, ws2, ws3, ws4, ws5])
+
+ws6.column_dimensions["B"].width = 90
+
+a = ws1['A2']
+b = ws2['A2']
+c = ws3['A2']
+d = ws4['A2']
+e = ws5['A2']
+f = ws6['A2']
+ws1.freeze_panes = a
+ws2.freeze_panes = b
+ws3.freeze_panes = c
+ws4.freeze_panes = d
+ws5.freeze_panes = e
+ws6.freeze_panes = f
+
+def hide_column(ws, column_id):
+    if isinstance(column_id, int):
+        assert column_id >= 1, "Column numbers must be 1 or greater"
+        column_id = openpyxl.utils.get_column_letter(column_id)
+    column_dimension = ws.column_dimensions[column_id]
+    column_dimension.hidden = True
+
+def spy():
+    hide_column(ws1, 1)
+    hide_column(ws2, 1)
+    hide_column(ws3, 1)
+    hide_column(ws4, 1)
+    hide_column(ws5, 1)
+    hide_column(ws6, 1)
+
+spy()
+
+final_wb.save('/Users/beik/Desktop/' + district_name + ' Final Report.xlsx')
+final_wb.close()
+
+rm_initial_report = remove('/Users/beik/Desktop/Initial Report.xlsx')
+
 ssh_magic.kill()
 print("The background process is now terminated!")
 end_time = time()
