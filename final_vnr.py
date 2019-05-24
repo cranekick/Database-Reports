@@ -18,6 +18,7 @@ Ths script is setup to run from a Mac and Mac only!
 start_time = datetime.now()
 # This is a dependency, we are creating a background ssh tunnel, this is to be able to access the AlienVault DB
 # The REQUIREMENT is the your public key is in the known_hosts on sec-mobile-one, use ssh-copy-id root@sec-mobile-one
+# and that you also have the proper settings in your ssh config
 print("Starting background process. ")
 ssh_magic = Popen(['ssh', '-N', '-L', '3306:127.0.0.1:3306', 'sec-mobile-one'], shell=False)
 
@@ -193,6 +194,7 @@ def ex_data():
     s = df_v_counts()
     file = Workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     ws0 = file.add_worksheet('Executive Summary')
+
     headings = ['Severity', 'Quantity']
     data = [
         ['Critical', 'High', 'Medium', 'Low'],
@@ -267,7 +269,7 @@ def ex_data():
                 {'fill': {'color': '#FFFF00'}}
             ],
         })
-        chart.set_title({'name': 'Location by Severity'})
+        # chart.set_title({'name': 'Location by Severity'})
         chart.set_x_axis({'name': 'Quantity'})
         chart.set_y_axis({'name': 'Severity'})
 
@@ -308,7 +310,15 @@ def final_file():
     ws5 = final_wb['Info']
     ws6 = final_wb['Vulnerabilities by Location']
     ws7 = final_wb['Unique by Severity']
-
+"""
+    # ws8 = final_wb['Raw Numbers']
+    # Going to need to move the ws8 to the end!!!!!
+    sheets = sheets.pop(1)
+    sheets.insert(8, sheet)
+    will be:
+    rm_sheet = sheets.pop(ws8)
+    place_sheet = sheet.insert(8, rm_sheet)
+"""
     vuln_data = [ws1, ws2, ws3, ws4, ws5]
 
     # Setting the TAB COLOR
