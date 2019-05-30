@@ -77,6 +77,13 @@ df = pd.DataFrame(db_call(query), columns=header_row)
 df = df.astype(str)
 df1 = pd.DataFrame(db_call(query1), columns=header_row1)
 df2 = pd.DataFrame(df[['Vulnerability', 'Risk Level']])
+df4 = pd.DataFrame(df[['Host IP', 'Vulnerability', 'Risk Level']])
+df4['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
+                              value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
+                                     'Exceptions'], inplace=True)
+df4 = df4[df4['Risk Level'] != 'Info']
+host_vuln_size = df4.groupby(['Host IP']).size().reset_index(name='Quantity')
+host_vuln_size.sort_values(by='Quantity', ascending=False, inplace=True)
 
 
 def df_rm_garbage():
@@ -194,15 +201,17 @@ def ex_data():
     s = df_v_counts()
     file = Workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     ws0 = file.add_worksheet('Executive Summary')
+    ws8 = file.add_worksheet('Raw Numbers')
+
 
     headings = ['Severity', 'Quantity']
     data = [
         ['Critical', 'High', 'Medium', 'Low'],
         [s[0], s[1], s[2], s[3]]
     ]
-    ws0.write_row('C2', headings)
-    ws0.write_column('C3', data[0])
-    ws0.write_column('D3', data[1])
+    ws8.write_row('A1', headings)
+    ws8.write_column('A2', data[0])
+    ws8.write_column('B2', data[1])
 
     chart2 = file.add_chart({'type': 'bar'})
 
@@ -210,8 +219,8 @@ def ex_data():
     chart2.add_series({
         'name': 'Vulnerabiliities by Severity',
         # CHANGED VALUES, SHOULD WORK NOW
-        'categories': "='Executive Summary'!$C$3:$C$6",
-        'values': "='Executive Summary'!$D$3:$D$6",
+        'categories': "='Raw Numbers'!$A$2:$A$5",
+        'values': "='Raw Numbers'!$B$2:$B$5",
         'data_labels': {'percentage': True},
         'points': [
             {'fill': {'color': '#FF00FF'}},
@@ -238,6 +247,12 @@ def ex_data():
     Medium = [item[3] for item in df_list]
     Low = [item[4] for item in df_list]
 
+    # Converting from strings to integers
+    Critical = list(map(int, Critical))
+    High = list(map(int, High))
+    Medium = list(map(int, Medium))
+    Low = list(map(int, Low))
+
     headings = ['Facility', 'Critical', 'High', 'Medium', 'Low']
     data = [
         Location,
@@ -247,12 +262,12 @@ def ex_data():
         Low
     ]
 
-    ws0.write_row('K1', headings)
-    ws0.write_column('K2', data[0])
-    ws0.write_column('L2', data[1])
-    ws0.write_column('M2', data[2])
-    ws0.write_column('N2', data[3])
-    ws0.write_column('O2', data[4])
+    ws8.write_row('D1', headings)
+    ws8.write_column('D2', data[0])
+    ws8.write_column('E2', data[1])
+    ws8.write_column('F2', data[2])
+    ws8.write_column('G2', data[3])
+    ws8.write_column('H2', data[4])
 
     for i in range(Quantity):
         chart = file.add_chart({'type': 'bar'})
@@ -260,8 +275,8 @@ def ex_data():
         chart.add_series({
             'name': Location[i],
             # THIS SHOULD WORK
-            'categories': ['Executive Summary', 0, 11, 0, 14],
-            'values': ['Executive Summary', i + 1, 11, i + 1, 14],
+            'categories': ['Raw Numbers', 0, 4, 0, 7],
+            'values': ['Raw Numbers', i + 1, 4, i + 1, 7],
             'points': [
                 {'fill': {'color': '#FF00FF'}},
                 {'fill': {'color': '#FF0000'}},
@@ -275,7 +290,7 @@ def ex_data():
 
         chart.set_style(11)
 
-        ws0.insert_chart('K' + str(20 * i + 2), chart, {'x_offset': 25, 'y_offset': 10 * (i + 1)})
+        ws0.insert_chart('K' + str(17 * i + 2), chart, {'x_offset': 25, 'y_offset': 10 * (i + 1)})
 
     file.close()
 
@@ -295,6 +310,7 @@ def writing_to_workbook():
     # df.to_excel(writer, sheet_name='Raw Data')
     df1.to_excel(writer, sheet_name='Vulnerabilities by Location')
     df_vuln_counts().to_excel(writer, sheet_name='Unique by Severity')
+    host_vuln_size.to_excel(writer, sheet_name='Vulnerability Count by Host')
     writer.save()
     writer.close()
 
@@ -310,16 +326,17 @@ def final_file():
     ws5 = final_wb['Info']
     ws6 = final_wb['Vulnerabilities by Location']
     ws7 = final_wb['Unique by Severity']
-"""
-    # ws8 = final_wb['Raw Numbers']
+    ws8 = final_wb['Raw Numbers']
+    ws9 = final_wb['Vulnerability Count by Host']
+
+
     # Going to need to move the ws8 to the end!!!!!
-    sheets = sheets.pop(1)
-    sheets.insert(8, sheet)
-    will be:
-    rm_sheet = sheets.pop(ws8)
-    place_sheet = sheet.insert(8, rm_sheet)
-"""
-    vuln_data = [ws1, ws2, ws3, ws4, ws5]
+    sheets  = final_wb._sheets
+    raw_numbers  = sheets.pop(1)
+    sheets.insert(9, raw_numbers)
+    # will be:
+    # rm_sheet = sheets.pop(ws8)
+    # place_sheet = sheets.insert(8, rm_sheet)
 
     # Setting the TAB COLOR
     ws1.sheet_properties.tabColor = 'FF00FF'  # Critical
@@ -328,11 +345,7 @@ def final_file():
     ws4.sheet_properties.tabColor = 'FFFF00'  # Low
     ws5.sheet_properties.tabColor = '00B050'  # Info
 
-    """
-    for ws in vuln_data.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
-    """
+
     for row in ws1.iter_rows():
         for cell in row:
             cell.alignment = cell.alignment.copy(wrapText=True)
@@ -378,6 +391,9 @@ def final_file():
 
     ws6.column_dimensions["B"].width = 25
     ws7.column_dimensions["B"].width = 90
+    ws8.column_dimensions["D"].width = 15
+    ws9.column_dimensions["B"].width = 11
+    ws9.column_dimensions["C"].width = 8
 
     a = ws1['A2']
     b = ws2['A2']
@@ -386,6 +402,7 @@ def final_file():
     e = ws5['A2']
     f = ws6['A2']
     g = ws7['A2']
+    h = ws9['A2']
     ws1.freeze_panes = a
     ws2.freeze_panes = b
     ws3.freeze_panes = c
@@ -393,6 +410,7 @@ def final_file():
     ws5.freeze_panes = e
     ws6.freeze_panes = f
     ws7.freeze_panes = g
+    ws9.freeze_panes = h
 
     def hide_column(ws, column_id):
         # This is the function creation to hide the dataframe column.
@@ -413,6 +431,7 @@ def final_file():
         hide_column(ws5, 1)
         hide_column(ws6, 1)
         hide_column(ws7, 1)
+        hide_column(ws9, 1)
 
     spy()
 
