@@ -82,8 +82,9 @@ df4['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
                               value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
                                      'Exceptions'], inplace=True)
 df4 = df4[df4['Risk Level'] != 'Info']
-host_vuln_size = df4.groupby(['Host IP']).size().reset_index(name='Quantity')
-host_vuln_size.sort_values(by='Quantity', ascending=False, inplace=True)
+df4 = df4[df4['Risk Level'] != 'Low']
+host_vuln_size = df4.groupby(['Host IP', 'Risk Level']).size().reset_index(name='Quantity')
+host_vuln_size.sort_values(by=['Risk Level','Quantity'], ascending=[True, False], inplace=True)
 
 
 def df_rm_garbage():
@@ -132,9 +133,41 @@ def df_extract():
     df['CVSS'] = df['Blob'].str.extract('Score:\s(\d.+)', expand=True)
     df['Observation'] = df['Blob'].str.extract('Summary:\n\n((?:[^\n][\n]?)+)', expand=False)
     df['Remediation'] = df['Blob'].str.extract('Solution:\n\n((?:[^\n][\n]?)+)', expand=False)
-    df['insight'] = df['Blob'].str.extract('Insight:\n\n((?:[^\n][\n]?)+)', expand=False)
+    # df['insight'] = df['Blob'].str.extract('Insight:\n\n((?:[^\n][\n]?)+)', expand=False)
+    # df['insight'] = df['Blob'].str.extract('(Insight:\n\n(.|\n)+?((?=Affected Software\/OS)|(?=Impact)))', expand=False) # WORKS
+    # df['insight'] = df['Blob'].str.extract('(Insight:\n\n(.|\n)+?((?=Affected Software\/OS)|(?=Impact)))', expand=False)
+    insight_df = df['Blob'].str.extract('(Insight:\n\n(.|\n)*)', expand=False)
+    df_insight = insight_df.drop([1], axis=1)
+    df_insight = df_insight.replace('(Vulnerability Detection Method:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(CVSS Base Vector:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(Affected Software\/OS:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(CVSS Base Score:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(Solution:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(References:(.|\n)*)', '', regex=True)  # YES
+    df_insight = df_insight.replace('(Summary:(.|\n)*)', '', regex=True) # YES
+    df_insight = df_insight.replace('(Impact:(.|\n)*)', '', regex=True)
+    df_insight = df_insight.replace('(&#039;)', '', regex=True)  # YES
+    df_insight = df_insight.replace('\n', ' ', regex=True)
+    df_insight = df_insight.replace(' - ', '\n - ', regex=True)
+    # df_insight = df_insight.replace('\n', ' ', regex=True)
+    df['insight']= df_insight
+    df_impact = df['Blob'].str.extract('(Impact:\n\n((?:[^\n][\n]?)(.|\n)*))', expand=False)
+    new_df = df_impact.drop([1, 2], axis=1)
+    new_df = new_df.replace('(Vulnerability Detection Method:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(CVSS Base Vector:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(Affected Software\/OS:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(Solution:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(References:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(Insight:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(Summary:(.|\n)*)', '', regex=True)
+    new_df = new_df.replace('(&#039;)', "'", regex=True)
+    new_df = new_df.replace('\n', ' ', regex=True)
+    # new_df = new_df.replace('\n', '', regex=True)
+    df['impact'] = new_df
     df['references'] = df['Blob'].str.extract('(References:\n\n(?:[^\n][\n]?)+)', expand=False)
-    df['Consequences'] = df['insight'] + '\n' + df['references']
+    df['references'] = df['references'].replace('\n', ' ', regex=True)
+    df['references'] = df['references'].replace('References:', 'References:\n', regex=True)
+    df['Consequences'] = df['insight'] + '\n\n' + df['impact'] + '\n\n' + df['references']
     df['Test Output'] = df['Blob'].str.extract('Result:\n\n((?:[^\n][\n]?)+)', expand=False)
     df['Operating System/Software'] = df['Blob'].str.extract('OS:\n\n((?:[^\n][\n]?)+)', expand=False)
     return df
@@ -374,8 +407,8 @@ def final_file():
         ws.column_dimensions["E"].width = 12
         ws.column_dimensions["F"].width = 9
         ws.column_dimensions["G"].width = 5
-        ws.column_dimensions["H"].width = 14
-        ws.column_dimensions["I"].width = 13
+        ws.column_dimensions["H"].width = 8  # was 14
+        ws.column_dimensions["I"].width = 14  # was 13
         ws.column_dimensions["J"].width = 25
         ws.column_dimensions["K"].width = 38
         ws.column_dimensions["L"].width = 25
@@ -435,8 +468,8 @@ def final_file():
 
     spy()
 
-    final_wb.save('/Users/' + current_user + '/Desktop/' + district_name + ' Final Report.xlsx')
-    print("Your file is saved to your Desktop. It is called " + district_name + " Final Report.xslx")
+    final_wb.save('/Users/' + current_user + '/Desktop/' + district_name + ' Technical Report.xlsx')
+    print("Your file is saved to your Desktop. It is called " + district_name + " Technical Report.xslx")
     final_wb.close()
 
 
