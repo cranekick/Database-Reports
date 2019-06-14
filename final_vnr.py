@@ -2,14 +2,14 @@
 
 import mysql.connector
 import pandas as pd
-from sys import exit
+from sys import exit, stdout, stdin, stderr
 from subprocess import Popen
 import openpyxl
 from openpyxl import load_workbook
 from os import remove
 from getpass import getuser
 from datetime import datetime
-import xlsxwriter
+import pdb
 
 """
 Ths script is setup to run from a Mac and Mac only!
@@ -48,6 +48,8 @@ query1 = ("""SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPL
             join vuln_jobs vjobs on vjobs.id = vnrstats.name
             group by Location""")
 
+# This is to get the device count
+query2 = ("SELECT distinct(count(hostname)) FROM alienvault.host")
 
 # Accessing the AlienVault MySQL Database
 def db_call(query):
@@ -59,7 +61,7 @@ def db_call(query):
         print("I am unable to connect to the MySQL Instance: " + str(e))
         exit(1)
 
-    # noinspection PyUnboundLocalVariable
+
     cursor = cnx.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
@@ -76,6 +78,8 @@ header_row1 = ['Location', 'Critical', 'High', 'Medium', 'Low']
 df = pd.DataFrame(db_call(query), columns=header_row)
 df = df.astype(str)
 df1 = pd.DataFrame(db_call(query1), columns=header_row1)
+df_asset_count = pd.DataFrame(db_call(query2))
+asset_count = df_asset_count[0][0]
 df2 = pd.DataFrame(df[['Vulnerability', 'Risk Level']])
 df4 = pd.DataFrame(df[['Host IP', 'Vulnerability', 'Risk Level']])
 df4['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
@@ -86,7 +90,32 @@ df4 = df4[df4['Risk Level'] != 'Low']
 host_vuln_size = df4.groupby(['Host IP', 'Risk Level']).size().reset_index(name='Quantity')
 host_vuln_size.sort_values(by=['Risk Level','Quantity'], ascending=[True, False], inplace=True)
 
+top10 = host_vuln_size.head(n=10)
+top10_parsed = top10[['Host IP', 'Quantity']]
+tlist = top10_parsed.values.tolist()
+"""
+# FIX THIS
+top5vulns = df4.head(n=5)
+t5vlist = top5vulns.values.tolist()
 
+
+rce1 = df3[df3['Vulnerability'].str.contains('Remote Code Execution')]
+rce2 = df3[df3['Vulnerability'].str.contains('RCE')]
+rce = rce1.append(rce2)
+
+# pdb.set_trace()
+
+rce.sort_values(by=['Risk Level', 'Quantity'], ascending=[True], inplace=True)
+
+df5 = pd.DataFrame(rce)
+rcetop10 = pd.DataFrame(rce.head(n=10))
+rcetop10['Risk Level'].replace('Critical', 10, inplace=True)
+
+rcetop10lst = rcetop10.values.tolist()
+
+df5['Risk Level'].replace(10, 'Critical', inplace=True)
+# df5.drop('Quantity', axis=1, inplace=True)
+"""
 def df_rm_garbage():
     # The following function removes beginning digits (1 - 10+), 'SCHEDULED - ' and any trailing digits (1 - 10+)
     # in the Locations Column of the DataFrame
@@ -111,7 +140,7 @@ def df_vuln_counts():
               (df2['Risk Level'] == 'Medium')].groupby(['Vulnerability', 'Risk Level']) \
         .size().reset_index(name='Quantity')
     df3.sort_values(by=['Risk Level', 'Quantity'], ascending=[True, False], inplace=True)
-    df3.drop(df3[df3.Quantity <= 10].index, inplace=True)
+    # df3.drop(df3[df3.Quantity <= 10].index, inplace=True)
     return df3
 
 
@@ -133,9 +162,6 @@ def df_extract():
     df['CVSS'] = df['Blob'].str.extract('Score:\s(\d.+)', expand=True)
     df['Observation'] = df['Blob'].str.extract('Summary:\n\n((?:[^\n][\n]?)+)', expand=False)
     df['Remediation'] = df['Blob'].str.extract('Solution:\n\n((?:[^\n][\n]?)+)', expand=False)
-    # df['insight'] = df['Blob'].str.extract('Insight:\n\n((?:[^\n][\n]?)+)', expand=False)
-    # df['insight'] = df['Blob'].str.extract('(Insight:\n\n(.|\n)+?((?=Affected Software\/OS)|(?=Impact)))', expand=False) # WORKS
-    # df['insight'] = df['Blob'].str.extract('(Insight:\n\n(.|\n)+?((?=Affected Software\/OS)|(?=Impact)))', expand=False)
     insight_df = df['Blob'].str.extract('(Insight:\n\n(.|\n)*)', expand=False)
     df_insight = insight_df.drop([1], axis=1)
     df_insight = df_insight.replace('(Vulnerability Detection Method:(.|\n)*)', '', regex=True)  # YES
@@ -149,7 +175,6 @@ def df_extract():
     df_insight = df_insight.replace('(&#039;)', '', regex=True)  # YES
     df_insight = df_insight.replace('\n', ' ', regex=True)
     df_insight = df_insight.replace(' - ', '\n - ', regex=True)
-    # df_insight = df_insight.replace('\n', ' ', regex=True)
     df['insight']= df_insight
     df_impact = df['Blob'].str.extract('(Impact:\n\n((?:[^\n][\n]?)(.|\n)*))', expand=False)
     new_df = df_impact.drop([1, 2], axis=1)
@@ -162,7 +187,6 @@ def df_extract():
     new_df = new_df.replace('(Summary:(.|\n)*)', '', regex=True)
     new_df = new_df.replace('(&#039;)', "'", regex=True)
     new_df = new_df.replace('\n', ' ', regex=True)
-    # new_df = new_df.replace('\n', '', regex=True)
     df['impact'] = new_df
     df['references'] = df['Blob'].str.extract('(References:\n\n(?:[^\n][\n]?)+)', expand=False)
     df['references'] = df['references'].replace('\n', ' ', regex=True)
@@ -182,10 +206,10 @@ def df_drop_columns():
 
 
 def df_apply_sort():
-    # This sort the DataFrame by CVSS Score. 10 - 0 in descending order. This is for precendence sake
+    # This sort the DataFrame by CVSS Score. 10 - 0 in descending order. This is for precedence sake
     print("Sorting results by CVSS.")
     df[['CVSS']] = df[['CVSS']].apply(pd.to_numeric)
-    df.sort_values(by='CVSS', ascending=False, inplace=True)
+    df.sort_values(by=['CVSS', 'Host IP'], ascending=[False, False], inplace=True)
     return df
 
 
@@ -197,7 +221,6 @@ def output_df():
 
 
 def df_sheets():
-    # works = self.output_df()
     s = output_df()
     critical_df = s.where(df['Risk Level'] == 'Critical')
     high_df = s.where(df['Risk Level'] == 'High')
@@ -208,7 +231,6 @@ def df_sheets():
 
 
 def rm_nans():
-    # works = self.df_sheets()
     s = df_sheets()
     processed_crits = s[0].dropna(how='all')
     processed_highs = s[1].dropna(how='all')
@@ -219,7 +241,6 @@ def rm_nans():
 
 
 def df_v_counts():
-    # works = self.rm_nans()
     s = rm_nans()
     crits = s[0].shape[0]
     highs = s[1].shape[0]
@@ -230,13 +251,14 @@ def df_v_counts():
 
 def ex_data():
     from xlsxwriter import Workbook
-    # works = self.df_v_counts()
     s = df_v_counts()
+    t = df_vuln_counts()
+    print("Adding Charts to the Executive Summary Sheet")
     file = Workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     ws0 = file.add_worksheet('Executive Summary')
-    ws8 = file.add_worksheet('Raw Numbers')
+    ws8 = file.add_worksheet('Chart Data')
 
-
+# ====== CUMULATIVE CHART ========== #
     headings = ['Severity', 'Quantity']
     data = [
         ['Critical', 'High', 'Medium', 'Low'],
@@ -246,15 +268,15 @@ def ex_data():
     ws8.write_column('A2', data[0])
     ws8.write_column('B2', data[1])
 
-    chart2 = file.add_chart({'type': 'bar'})
+    chart1 = file.add_chart({'type': 'bar'})
 
     # Configure the series and add user defined segment colors.
-    chart2.add_series({
-        'name': 'Vulnerabiliities by Severity',
+    chart1.add_series({
+        # 'name': 'Vulnerabiliities by Severity',
         # CHANGED VALUES, SHOULD WORK NOW
-        'categories': "='Raw Numbers'!$A$2:$A$5",
-        'values': "='Raw Numbers'!$B$2:$B$5",
-        'data_labels': {'percentage': True},
+        'categories': "='Chart Data'!$A$2:$A$5",
+        'values': "='Chart Data'!$B$2:$B$5",
+        'data_labels': {'value': True},
         'points': [
             {'fill': {'color': '#FF00FF'}},
             {'fill': {'color': '#FF0000'}},
@@ -264,13 +286,15 @@ def ex_data():
     })
 
     # Add a title.
-    chart2.set_title({'name': 'Vulnerabilities by Severity'})
-    chart2.set_x_axis({'name': 'Quantity'})
-    chart2.set_y_axis({'name': 'Severity'})
+    chart1.set_title({'name': 'Vulnerabilities by Severity'})
+    chart1.set_x_axis({'name': 'Quantity'})
+    chart1.set_y_axis({'name': 'Severity'})
 
     # Insert the chart into the worksheet (with an offset).
-    ws0.insert_chart('A1', chart2, {'x_offset': 25, 'y_offset': 10})
+    ws0.insert_chart('A1', chart1, {'x_offset': 25, 'y_offset': 10})
 
+# ==================================================================== #
+# ======= CHART PER LOCATION ========== #
     Quantity = df1.shape[0]
     df_list = df1.values.tolist()
 
@@ -303,13 +327,14 @@ def ex_data():
     ws8.write_column('H2', data[4])
 
     for i in range(Quantity):
-        chart = file.add_chart({'type': 'bar'})
+        chart2 = file.add_chart({'type': 'bar'})
 
-        chart.add_series({
+        chart2.add_series({
             'name': Location[i],
             # THIS SHOULD WORK
-            'categories': ['Raw Numbers', 0, 4, 0, 7],
-            'values': ['Raw Numbers', i + 1, 4, i + 1, 7],
+            'categories': ['Chart Data', 0, 4, 0, 7],
+            'values': ['Chart Data', i + 1, 4, i + 1, 7],
+            'data_labels': {'value': True},
             'points': [
                 {'fill': {'color': '#FF00FF'}},
                 {'fill': {'color': '#FF0000'}},
@@ -318,23 +343,175 @@ def ex_data():
             ],
         })
         # chart.set_title({'name': 'Location by Severity'})
-        chart.set_x_axis({'name': 'Quantity'})
-        chart.set_y_axis({'name': 'Severity'})
+        chart2.set_x_axis({'name': 'Quantity'})
+        chart2.set_y_axis({'name': 'Severity'})
 
-        chart.set_style(11)
+        chart2.set_style(11)
 
-        ws0.insert_chart('K' + str(17 * i + 2), chart, {'x_offset': 25, 'y_offset': 10 * (i + 1)})
+        ws0.insert_chart('K' + str(17 * i + 2), chart2, {'x_offset': 25, 'y_offset': 10 * (i + 1)})
+
+# ================================================================================= #
+# ==============TOP 10 HOSTS CHART============= #
+    host_ip = [item[0] for item in tlist]
+    quantity = [item[1] for item in tlist]
+    headings = ['Host IP', 'Quantity']
+    data = [
+        host_ip,
+        quantity
+    ]
+
+    ws8.write_row('L1', headings)
+    ws8.write_column('L2', data[0])
+    ws8.write_column('M2', data[1])
+
+    chart3 = file.add_chart({'type': 'column'})
+
+    # Configure the series and add user defined segment colors.
+    chart3.add_series({
+        # 'name': 'Vulnerabilities by Severity',
+        # CHANGED VALUES, SHOULD WORK NOW
+        'categories': "='Chart Data'!$L$2:$L$11",
+        'values': "='Chart Data'!$M$2:$M$11",
+        'data_labels': {'value': True},
+        'points': [
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+        ],
+
+    })
+
+    # Add a title.
+    chart3.set_legend({'position': 'none'})
+    chart3.set_title({'name': 'Critical: Top 10 Hosts'})
+    chart3.set_x_axis({'name': 'Host IP'})
+    chart3.set_y_axis({'name': 'Quantity'})
+
+    ws0.insert_chart('A17', chart3, {'x_offset': 25, 'y_offset': 10})
+
+# ========================================================================== #
+# ============= TOP 5 COMMON VULNERABILITIES CHART ============= #
+    top5vulns = t.head(n=5)
+    t5vlist = top5vulns.values.tolist()
+
+    vuln = [item[0] for item in t5vlist]
+    quantity = [item[2] for item in t5vlist]
+    headings = ['Vulnerability', 'Quantity']
+    data = [
+        vuln,
+        quantity
+    ]
+
+    ws8.write_row('O1', headings)
+    ws8.write_column('O2', data[0])
+    ws8.write_column('P2', data[1])
+
+    chart4 = file.add_chart({'type': 'bar'})
+
+    # Configure the series and add user defined segment colors.
+    chart4.add_series({
+        # 'name': 'Vulnerabilities by Severity',
+        # CHANGED VALUES, SHOULD WORK NOW
+        'categories': "='Chart Data'!$O$2:$O$6",
+        'values': "='Chart Data'!$P$2:$P$6",
+        'data_labels': {'value': True},
+        'points': [
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+        ],
+    })
+
+    # Add a title.
+    chart4.set_legend({'position': 'none'})
+    chart4.set_title({'name': 'Common Enterprise Vulnerabilities'})
+    chart4.set_x_axis({'name': 'Quantity'})
+    chart4.set_y_axis({'name': 'Vulnerability'})
+
+    ws0.insert_chart('A33', chart4, {'x_offset': 25, 'y_offset': 10})
+
+# ====================================================================== #
+# ============= TOP 10 RCE CHART ============= #
+    rce1 = t[t['Vulnerability'].str.contains('Remote Code Execution')]
+    rce2 = t[t['Vulnerability'].str.contains('RCE')]
+    rce = rce1.append(rce2)
+
+    # pdb.set_trace()
+
+    rce.sort_values(by=['Risk Level', 'Quantity'], ascending=[True, False], inplace=True)
+    global df5
+    df5 = pd.DataFrame(rce)
+    rcetop10 = pd.DataFrame(rce.head(n=10))
+    rcetop10['Risk Level'].replace('Critical', 10, inplace=True)
+
+    rcetop10lst = rcetop10.values.tolist()
+
+    df5['Risk Level'].replace(10, 'Critical', inplace=True)
+    df5.drop('Quantity', axis=1, inplace=True)
+
+    rce = [item[0] for item in rcetop10lst]
+    qty = [item[1] for item in rcetop10lst]
+    headings = ['Vulnerability', 'Risk Level']
+    data5 = [
+            rce,
+            qty
+            ]
+
+    ws8.write_row('R1', headings)
+    ws8.write_column('R2', data5[0])
+    ws8.write_column('S2', data5[1])
+
+    chart5 = file.add_chart({'type': 'bar'})
+
+# Configure the series and add user defined segment colors.
+    chart5.add_series({
+        # 'name': 'Vulnerabilities by Severity',
+        # CHANGED VALUES, SHOULD WORK NOW
+        'categories': "='Chart Data'!$R$2:$R$11",
+        'values': "='Chart Data'!$S$2:$S$11",
+        'points': [
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            ],
+        })
+
+    # Add a title.
+    chart5.set_size({'width': 1000, 'height': 550})
+    chart5.set_legend({'position': 'none'})
+    chart5.set_title({'name': 'Risk by Exploitability'})
+    chart5.set_x_axis({'name': 'CVSS'})
+    chart5.set_y_axis({'name': 'Vulnerability'})
+    
+    ws0.insert_chart('A88', chart5, {'x_offset': 25, 'y_offset': 10})
 
     file.close()
+    return df5
 
 
 def writing_to_workbook():
     # This needs to happen after ex_data
     # works = self.rm_nans()
     s = rm_nans()
+    print("Writing Data sheets to initial file")
     book = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     writer = pd.ExcelWriter('/Users/' + current_user + '/Desktop/Initial Report.xlsx', engine='openpyxl', mode='a')
-
     s[0].to_excel(writer, sheet_name='Critical')
     s[1].to_excel(writer, sheet_name='High')
     s[2].to_excel(writer, sheet_name='Medium')
@@ -344,12 +521,14 @@ def writing_to_workbook():
     df1.to_excel(writer, sheet_name='Vulnerabilities by Location')
     df_vuln_counts().to_excel(writer, sheet_name='Unique by Severity')
     host_vuln_size.to_excel(writer, sheet_name='Vulnerability Count by Host')
+    ex_data().to_excel(writer, sheet_name='Risk by Exploitability')
     writer.save()
     writer.close()
 
 
 def final_file():
     final_wb = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
+    print("Finalizing file and saving")
 
     ws_ES = final_wb['Executive Summary']
     ws1 = final_wb['Critical']
@@ -359,17 +538,21 @@ def final_file():
     ws5 = final_wb['Info']
     ws6 = final_wb['Vulnerabilities by Location']
     ws7 = final_wb['Unique by Severity']
-    ws8 = final_wb['Raw Numbers']
+    ws8 = final_wb['Chart Data']
     ws9 = final_wb['Vulnerability Count by Host']
+    ws10 = final_wb['Risk by Exploitability']
 
 
-    # Going to need to move the ws8 to the end!!!!!
-    sheets  = final_wb._sheets
-    raw_numbers  = sheets.pop(1)
-    sheets.insert(9, raw_numbers)
-    # will be:
-    # rm_sheet = sheets.pop(ws8)
-    # place_sheet = sheets.insert(8, rm_sheet)
+    # This moves the Raw Numbers sheet to the end
+    sheets = final_wb._sheets
+    chart_data = sheets.pop(1)
+    sheets.insert(10, chart_data)
+
+    # This adds the device count and quantity to the Raw Numbers sheet
+    asset_title = ws8['J1']
+    asset_title.value = 'Device Count'
+    asset_quantity = ws8['J2']
+    asset_quantity.value = asset_count
 
     # Setting the TAB COLOR
     ws1.sheet_properties.tabColor = 'FF00FF'  # Critical
@@ -378,26 +561,13 @@ def final_file():
     ws4.sheet_properties.tabColor = 'FFFF00'  # Low
     ws5.sheet_properties.tabColor = '00B050'  # Info
 
+    # Iterating over vuln data in order to give the cells textwrap
+    vuln_data = [ws1, ws2, ws3, ws4, ws5]
 
-    for row in ws1.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
-
-    for row in ws2.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
-
-    for row in ws3.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
-
-    for row in ws4.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
-
-    for row in ws5.iter_rows():
-        for cell in row:
-            cell.alignment = cell.alignment.copy(wrapText=True)
+    for ws in vuln_data:
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.alignment = cell.alignment.copy(wrapText=True)
 
     def format_column(ws):
         # This sets the column dimensions for ws1 - ws5
@@ -425,8 +595,17 @@ def final_file():
     ws6.column_dimensions["B"].width = 25
     ws7.column_dimensions["B"].width = 90
     ws8.column_dimensions["D"].width = 15
-    ws9.column_dimensions["B"].width = 11
+    ws8.column_dimensions["J"].width = 12
+    ws8.column_dimensions["L"].width = 12.50
+    ws8.column_dimensions["M"].width = 6.83
+    ws8.column_dimensions["O"].width = 65
+    ws8.column_dimensions["P"].width = 6.83
+    ws8.column_dimensions["R"].width = 65.50
+    ws8.column_dimensions["S"].width = 65.50
+    ws9.column_dimensions["B"].width = 13
     ws9.column_dimensions["C"].width = 8
+    ws10.column_dimensions["B"].width = 100
+    ws10.column_dimensions["C"].width = 7.50
 
     a = ws1['A2']
     b = ws2['A2']
@@ -436,6 +615,7 @@ def final_file():
     f = ws6['A2']
     g = ws7['A2']
     h = ws9['A2']
+    j = ws10['A2']
     ws1.freeze_panes = a
     ws2.freeze_panes = b
     ws3.freeze_panes = c
@@ -444,6 +624,7 @@ def final_file():
     ws6.freeze_panes = f
     ws7.freeze_panes = g
     ws9.freeze_panes = h
+    ws10.freeze_panes = j
 
     def hide_column(ws, column_id):
         # This is the function creation to hide the dataframe column.
@@ -455,8 +636,6 @@ def final_file():
 
     def spy():
         # This function actually hides the column.
-        # hide_column(ws_ES, 1)
-        # hide_column(ws_ES, 2)
         hide_column(ws1, 1)
         hide_column(ws2, 1)
         hide_column(ws3, 1)
@@ -465,6 +644,7 @@ def final_file():
         hide_column(ws6, 1)
         hide_column(ws7, 1)
         hide_column(ws9, 1)
+        hide_column(ws10, 1)
 
     spy()
 
@@ -497,5 +677,4 @@ ssh_magic.kill()
 print("The background process is now terminated!")
 end_time = datetime.now()
 running_time = (end_time - start_time)
-# running_minutes = running_time / 60
-print("It took " + str(running_time) + " minutes to process.")
+print("It took " + str(running_time[2:6]) + " minutes to process.")
