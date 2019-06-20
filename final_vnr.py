@@ -2,14 +2,15 @@
 
 import mysql.connector
 import pandas as pd
-from sys import exit, stdout, stdin, stderr
+from sys import exit
 from subprocess import Popen
 import openpyxl
 from openpyxl import load_workbook
 from os import remove
 from getpass import getuser
 from datetime import datetime
-import pdb
+# import pdb
+import final_vnr_pub_date as fvpd
 
 """
 Ths script is setup to run from a Mac and Mac only!
@@ -663,6 +664,13 @@ def main():
     output_df()
     df_sheets()
     rm_nans()
+    fvpd.df_manipulation()
+    fvpd.removal_parsing()
+    fvpd.more_parsing()
+    fvpd.sql_data()
+    fvpd.cleaning_dates()
+    fvpd.delta_calculation()
+    fvpd.counter()
     ex_data()
     writing_to_workbook()
     final_file()
@@ -677,4 +685,5 @@ ssh_magic.kill()
 print("The background process is now terminated!")
 end_time = datetime.now()
 running_time = (end_time - start_time)
-print("It took " + str(running_time[2:6]) + " minutes to process.")
+ptime = running_time[2:6]
+print("It took " + str(ptime) + " minutes to process.")
