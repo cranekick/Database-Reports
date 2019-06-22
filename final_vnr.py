@@ -8,15 +8,23 @@ import openpyxl
 from openpyxl import load_workbook
 from os import remove
 from getpass import getuser
-from datetime import datetime
+# from datetime import datetime
+import io
+import csv
+# import pandas as pd
+import sqlalchemy
+# import mysql.connector
+import re
+import datetime
+# import final_vnr_pub_date as fvpd
 # import pdb
-import final_vnr_pub_date as fvpd
+from xlsxwriter import Workbook as xslxW
 
 """
 Ths script is setup to run from a Mac and Mac only!
 """
 
-start_time = datetime.now()
+# start_time = datetime.now()
 # This is a dependency, we are creating a background ssh tunnel, this is to be able to access the AlienVault DB
 # The REQUIREMENT is the your public key is in the known_hosts on sec-mobile-one, use ssh-copy-id root@sec-mobile-one
 # and that you also have the proper settings in your ssh config
@@ -53,7 +61,8 @@ query1 = ("""SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPL
 query2 = ("SELECT distinct(count(hostname)) FROM alienvault.host")
 
 # Accessing the AlienVault MySQL Database
-def db_call(query):
+def db_call(sql):
+    """ Connecting to the DB and running queries"""
     try:
         cnx = mysql.connector.connect(user='svcpython', password='e6$E7sQBUegYayoU',
                                       host='localhost',
@@ -64,7 +73,7 @@ def db_call(query):
 
 
     cursor = cnx.cursor()
-    cursor.execute(query)
+    cursor.execute(sql)
     results = cursor.fetchall()
     cursor.close()
     cnx.close()
@@ -72,7 +81,7 @@ def db_call(query):
     return results
 
 
-# GLOBAL
+"""" *************************************** GLOBALS **************************************************** """
 header_row = ['Location', 'Hostname', 'Host IP', 'Service', 'Vuln ID', 'CVE', 'Risk Level', 'Vulnerability',
               '9', '10', '11', '12', 'Blob']
 header_row1 = ['Location', 'Critical', 'High', 'Medium', 'Low']
@@ -94,6 +103,28 @@ host_vuln_size.sort_values(by=['Risk Level','Quantity'], ascending=[True, False]
 top10 = host_vuln_size.head(n=10)
 top10_parsed = top10[['Host IP', 'Quantity']]
 tlist = top10_parsed.values.tolist()
+
+database_username = 'svcpython'
+database_password = 'e6$E7sQBUegYayoU'
+database_ip       = '204.169.19.87'
+database_name     = 'NVD'
+database_connection = sqlalchemy.create_engine('mysql+mysqlconnector://{0}:{1}@{2}/{3}'.
+                                               format(database_username, database_password,
+                                                      database_ip, database_name))
+
+current_date = datetime.datetime.today().strftime('%Y-%m-%d')
+cd_format = datetime.datetime.strptime(current_date, '%Y-%m-%d')
+
+thirty_days = 30
+sixty_days = 60
+ninety_days = 90
+onetwenty = 120
+six_months = 182
+one_year = 365
+two_year = 730
+three_year = 1095
+
+""" **************************************** GLOBALS ******************************************************"""
 """
 # FIX THIS
 top5vulns = df4.head(n=5)
@@ -131,9 +162,11 @@ def df_rm_garbage():
 
 
 def df_vuln_counts():
-    # The following replaces the the numerical structure of the 'Risk Level' column with a string based structure.
-    # It also groups vulnerabilites by quantity in order to determine what the most prevalent vulns are within the
-    # environment. It finally sorts it based on alphabetical order first then by quantity in descending fashion.
+    """The following replaces the the numerical structure of the 'Risk Level' column with a string based structure.
+    It also groups vulnerabilities by quantity in order to determine what the most prevalent vulns are within the
+    environment. It finally sorts it based on alphabetical order first then by quantity in descending fashion. """
+    print("Getting the vulnerability counts")
+    global df3
     df2['Risk Level'].replace(to_replace=['1', '2', '3', '4', '5', '6', '7', '8'],
                               value=['Critical', 'High', 'Medium', 'Medium/Low', 'Low/Medium', 'Low', 'Info',
                                      'Exceptions'], inplace=True)
@@ -157,8 +190,8 @@ def df_shenanigans():
 
 
 def df_extract():
-    # Extracting values from the AlienVault Database as it is a hodgepodge of information, this presents the information
-    # like when you download the Excel
+    """ Extracting values from the AlienVault Database as it is a hodgepodge of information, this presents the information
+    like when you download the Excel"""
     print("Extracting fields and placing the data in AlienVault Excel view for Columns")
     df['CVSS'] = df['Blob'].str.extract('Score:\s(\d.+)', expand=True)
     df['Observation'] = df['Blob'].str.extract('Summary:\n\n((?:[^\n][\n]?)+)', expand=False)
@@ -215,6 +248,7 @@ def df_apply_sort():
 
 
 def output_df():
+    print("Ordering the Dataframe")
     ordered_df = df[
         ['Location', 'Hostname', 'Host IP', 'Service', 'Risk Level', 'CVSS', 'Vuln ID', 'CVE', 'Vulnerability',
          'Observation', 'Remediation', 'Consequences', 'Test Output', 'Operating System/Software']]
@@ -223,6 +257,7 @@ def output_df():
 
 def df_sheets():
     s = output_df()
+    print("Gathering the vulnerabilities based on severity")
     critical_df = s.where(df['Risk Level'] == 'Critical')
     high_df = s.where(df['Risk Level'] == 'High')
     medium_df = s.where(df['Risk Level'] == 'Medium')
@@ -233,6 +268,8 @@ def df_sheets():
 
 def rm_nans():
     s = df_sheets()
+    print("Removing NaN's")
+    global processed_crits, processed_highs, processed_mediums, processed_lows, processed_infos
     processed_crits = s[0].dropna(how='all')
     processed_highs = s[1].dropna(how='all')
     processed_mediums = s[2].dropna(how='all')
@@ -242,20 +279,146 @@ def rm_nans():
 
 
 def df_v_counts():
-    s = rm_nans()
-    crits = s[0].shape[0]
-    highs = s[1].shape[0]
-    meds = s[2].shape[0]
-    lows = s[3].shape[0]
+    rm_nans()
+    print("Getting the quantity of each vulnerability severity")
+    crits = processed_crits.shape[0]
+    highs = processed_highs.shape[0]
+    meds = processed_mediums.shape[0]
+    lows = processed_lows.shape[0]
     return crits, highs, meds, lows
+
+def df_manipulation():
+    """ 1. Get Data from final_vnr 2. Create Dataframe 3. Drop duplicate values 4. Return df as list"""
+    file = rm_nans()[0]
+    print("Gathering only the CVE's")
+    # newfile = pd.ExcelFile('/Users/beik/Desktop/Downers Grove Technical Report.xlsx')
+    # crits = pd.read_excel(newfile, 'Critical')
+    df = pd.DataFrame(file['CVE'])
+    p_drop_dup = df.CVE.unique()
+    newlist = p_drop_dup.tolist()
+    return newlist
+
+
+def removal_parsing():
+    """1. Getting newlist 2. Removing duplicates 3. Setting to List 4. Remove 1st entry 5. Joining strings together
+    6. Reformatting 7. Return porcessed values"""
+    newlist = df_manipulation()
+    print("Parsing the CVE's")
+    final_rm = set(newlist)
+    last_list = list(final_rm)
+    last_list.remove(last_list[0])
+    last_list.sort()
+    x = ''.join([str(item) for sublist in last_list for item in sublist])
+    y = re.sub(r"(?P<number>\d)(?P<word>C)", r"\g<number>, \g<word>", x)
+    z = re.sub(r'(?P<CVE>CVE-\d*-\d*)', r'\g<CVE>', y)
+    n = next(csv.reader(io.StringIO(z)))
+    return n
+
+
+def more_parsing():
+    """1. Removing whitespace 2. Removing duplicates 3. Setting to list 4. Sorting 5. Dumping to df 6. Dumping to list
+    - This is needed in order to run SQL queries"""
+    n = removal_parsing()
+    print("Still parsing the CVE's")
+    parsed_data = []
+    for i in n:
+        f = i.replace(' ', '')
+        parsed_data.append(f)
+    l2 = set(parsed_data)
+    l2l = list(l2)
+    sorting = sorted(l2l)
+    header = ['CVE ID']
+    cve_df = pd.DataFrame(sorting, columns=header)
+    # Converting to list, this is needed in order to pass to params in the sql query
+    cve_list = cve_df.values.tolist()
+    return cve_list
+
+
+def sql_data():
+    cve_list = more_parsing()
+    print("Running SQL Queries to get the published date per CVE")
+    """Running over the queries and adding them to an array, this is only the case as the original query does not 
+    function as intended"""
+    pub_date = []
+    for i in cve_list:
+        r = i
+        query4 = ("""SELECT publishedDate FROM NVD_PUB WHERE CVE_ID = %s""")
+        q = pd.read_sql_query(query4, con=database_connection, params=r)
+        pub_date.append(q)
+    return pub_date
+
+
+def cleaning_dates():
+    pub_date = sql_data()
+    print("Cleaning the Date structure")
+    """1. Cleaning up date structure 2. Appending to array"""
+    final_p_date = []
+    regex = re.compile(r"(\d*-\d*-\d*)")
+    for i in pub_date:
+        match = regex.findall(str(i))
+        final_p_date.append(match)
+# Remove empty arrays
+    final_format = list(filter(None, final_p_date))
+    return final_format
+
+
+def delta_calculation():
+    final_format = cleaning_dates()
+    print("Performing the delta calculations")
+    """1. Performing Calculation 2. Appending to array 3. Sorting values"""
+    delta_array = []
+    for i in final_format:
+        pday = str(i)
+        pday = datetime.datetime.strptime(pday, "['%Y-%m-%d']")
+        delta = abs((cd_format - pday).days)
+        delta_array.append(delta)
+
+    delta_array.sort()
+    return delta_array
+
+
+# sorted array
+def counter():
+    delta_array = delta_calculation()
+    print("Running the counter")
+    """1. Setting counters 2. Processing delta array 3. Incrementing counter 4. Returning results"""
+    thirty_counter = 0
+    sixty_counter = 0
+    ninety_counter = 0
+    onetwenty_counter = 0
+    six_months_counter = 0
+    one_year_counter = 0
+    two_year_counter = 0
+    three_year_counter = 0
+
+    for i in delta_array:
+        if i > three_year:
+            three_year_counter += 1
+        elif i > one_year <= two_year:
+            two_year_counter += 1
+        elif i > six_months <= one_year:
+            one_year_counter += 1
+        elif i > onetwenty <= six_months:
+            six_months_counter += 1
+        elif i > ninety_days <= onetwenty:
+            onetwenty_counter += 1
+        elif i > sixty_days <= ninety_days:
+            ninety_counter += 1
+        elif i > thirty_days <= sixty_days:
+            sixty_counter += 1
+        elif i <= thirty_days:
+            thirty_counter += 1
+
+    return thirty_counter, sixty_counter, ninety_counter, onetwenty_counter, six_months_counter, one_year_counter, \
+        two_year_counter, three_year_counter
 
 
 def ex_data():
-    from xlsxwriter import Workbook
     s = df_v_counts()
     t = df_vuln_counts()
+    ccount = counter()
     print("Adding Charts to the Executive Summary Sheet")
-    file = Workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
+    file = xslxW('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     ws0 = file.add_worksheet('Executive Summary')
     ws8 = file.add_worksheet('Chart Data')
 
@@ -502,34 +665,74 @@ def ex_data():
     
     ws0.insert_chart('A88', chart5, {'x_offset': 25, 'y_offset': 10})
 
+    # ====================================================================== #
+    # ============= Critical Published Date Quantities ============= #
+
+    headings = ['Time Period', 'Quantity']
+    data6 = [
+        ['30 Days', '60 Days', '90 Days', '120 Days', '6 Months', '1 Year', '2 Years', '3 Years'],
+        [ccount[0], ccount[1], ccount[2], ccount[3], ccount[4], ccount[5], ccount[6], ccount[7]]
+    ]
+
+    ws8.write_row('U1', headings)
+    ws8.write_column('U2', data6[0])
+    ws8.write_column('V2', data6[1])
+
+    chart6 = file.add_chart({'type': 'bar'})
+
+    # Configure the series and add user defined segment colors.
+    chart6.add_series({
+        # 'name': 'Critical Vulnerabilites Present Timeline',
+        # CHANGED VALUES, SHOULD WORK NOW
+        'categories': "='Chart Data'!$U$2:$U$9",
+        'values': "='Chart Data'!$V$2:$V$9",
+        'data_labels': {'value': True},
+        'points': [
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+            {'fill': {'color': '#FF00FF'}},
+        ],
+    })
+
+    # Add a title.
+    chart6.set_legend({'position': 'none'})
+    chart6.set_title({'name': 'Critical Vulnerabilities Present Timeline'})
+    chart6.set_x_axis({'name': 'Quantity'})
+    chart6.set_y_axis({'name': 'Time Period'})
+
+    ws0.insert_chart('A49', chart6, {'x_offset': 25, 'y_offset': 10})
+
     file.close()
     return df5
 
 
 def writing_to_workbook():
     # This needs to happen after ex_data
-    # works = self.rm_nans()
-    s = rm_nans()
     print("Writing Data sheets to initial file")
     book = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
     writer = pd.ExcelWriter('/Users/' + current_user + '/Desktop/Initial Report.xlsx', engine='openpyxl', mode='a')
-    s[0].to_excel(writer, sheet_name='Critical')
-    s[1].to_excel(writer, sheet_name='High')
-    s[2].to_excel(writer, sheet_name='Medium')
-    s[3].to_excel(writer, sheet_name='Low')
-    s[4].to_excel(writer, sheet_name='Info')
+    processed_crits.to_excel(writer, sheet_name='Critical')
+    processed_highs.to_excel(writer, sheet_name='High')
+    processed_mediums.to_excel(writer, sheet_name='Medium')
+    processed_lows.to_excel(writer, sheet_name='Low')
+    processed_infos.to_excel(writer, sheet_name='Info')
     # df.to_excel(writer, sheet_name='Raw Data')
     df1.to_excel(writer, sheet_name='Vulnerabilities by Location')
-    df_vuln_counts().to_excel(writer, sheet_name='Unique by Severity')
+    df3.to_excel(writer, sheet_name='Unique by Severity')
     host_vuln_size.to_excel(writer, sheet_name='Vulnerability Count by Host')
-    ex_data().to_excel(writer, sheet_name='Risk by Exploitability')
+    df5.to_excel(writer, sheet_name='Risk by Exploitability')
     writer.save()
     writer.close()
 
 
 def final_file():
+    print("Processing final Report")
     final_wb = load_workbook('/Users/' + current_user + '/Desktop/Initial Report.xlsx')
-    print("Finalizing file and saving")
 
     ws_ES = final_wb['Executive Summary']
     ws1 = final_wb['Critical']
@@ -592,6 +795,8 @@ def final_file():
         return [format_column(sheet) for sheet in sheets]
 
     proper_width = handle_col(*[ws1, ws2, ws3, ws4, ws5])
+
+    print("Finalizing file and saving")
 
     ws6.column_dimensions["B"].width = 25
     ws7.column_dimensions["B"].width = 90
@@ -661,16 +866,8 @@ def main():
     df_extract()
     df_drop_columns()
     df_apply_sort()
-    output_df()
-    df_sheets()
-    rm_nans()
-    fvpd.df_manipulation()
-    fvpd.removal_parsing()
-    fvpd.more_parsing()
-    fvpd.sql_data()
-    fvpd.cleaning_dates()
-    fvpd.delta_calculation()
-    fvpd.counter()
+    counter()
+    # output_df()
     ex_data()
     writing_to_workbook()
     final_file()
@@ -683,7 +880,7 @@ rm_initial_report = remove('/Users/' + current_user + '/Desktop/Initial Report.x
 
 ssh_magic.kill()
 print("The background process is now terminated!")
-end_time = datetime.now()
-running_time = (end_time - start_time)
-ptime = running_time[2:6]
-print("It took " + str(ptime) + " minutes to process.")
+# end_time = datetime.now()
+# running_time = (end_time - start_time)
+# ptime = running_time[2:6]
+# print("It took " + str(ptime) + " minutes to process.")
